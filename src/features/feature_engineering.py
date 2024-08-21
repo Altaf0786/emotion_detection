@@ -2,6 +2,7 @@ import numpy as np
 import pandas as pd
 import os
 from sklearn.feature_extraction.text import TfidfVectorizer
+from sklearn.preprocessing import LabelEncoder
 import yaml
 import logging
 
@@ -53,29 +54,30 @@ def load_data(file_path: str) -> pd.DataFrame:
         logger.error('Unexpected error occurred while loading the data: %s', e)
         raise
 
-def apply_tfidf(train_data: pd.DataFrame, test_data: pd.DataFrame, max_features: int) -> tuple:
-    """Apply TfIdf to the data."""
+def apply_tfidf_and_encode(train_data: pd.DataFrame, test_data: pd.DataFrame, max_features: int) -> tuple:
+    """Apply TfIdf to the data and encode labels for multi-class classification."""
     try:
         vectorizer = TfidfVectorizer(max_features=max_features)
+        label_encoder = LabelEncoder()
 
         X_train = train_data['content'].values
-        y_train = train_data['sentiment'].values
+        y_train = label_encoder.fit_transform(train_data['sentiment'].values)
         X_test = test_data['content'].values
-        y_test = test_data['sentiment'].values
+        y_test = label_encoder.transform(test_data['sentiment'].values)
 
-        X_train_bow = vectorizer.fit_transform(X_train)
-        X_test_bow = vectorizer.transform(X_test)
+        X_train_tfidf = vectorizer.fit_transform(X_train)
+        X_test_tfidf = vectorizer.transform(X_test)
 
-        train_df = pd.DataFrame(X_train_bow.toarray())
+        train_df = pd.DataFrame(X_train_tfidf.toarray())
         train_df['label'] = y_train
 
-        test_df = pd.DataFrame(X_test_bow.toarray())
+        test_df = pd.DataFrame(X_test_tfidf.toarray())
         test_df['label'] = y_test
 
-        logger.debug('Bag of Words applied and data transformed')
+        logger.debug('TfIdf applied, labels encoded, and data transformed')
         return train_df, test_df
     except Exception as e:
-        logger.error('Error during Bag of Words transformation: %s', e)
+        logger.error('Error during TfIdf transformation and label encoding: %s', e)
         raise
 
 def save_data(df: pd.DataFrame, file_path: str) -> None:
@@ -96,7 +98,7 @@ def main():
         train_data = load_data('./data/interim/train_processed.csv')
         test_data = load_data('./data/interim/test_processed.csv')
 
-        train_df, test_df = apply_tfidf(train_data, test_data, max_features)
+        train_df, test_df = apply_tfidf_and_encode(train_data, test_data, max_features)
 
         save_data(train_df, os.path.join("./data", "processed", "train_tfidf.csv"))
         save_data(test_df, os.path.join("./data", "processed", "test_tfidf.csv"))
